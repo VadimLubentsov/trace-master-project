@@ -1,0 +1,27 @@
+services:
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8003:8000"
+    environment:
+      SSO_SERVICE_URL: http://sso-service:8000
+      PRODUCT_SERVICE_URL: http://product-service:8000
+    depends_on:
+      - sso-service
+      - product-service
+
+  sso-service:
+    build:
+      context: ./sso-service
+    container_name: sso-service
+    ports:
+      - "8002:8000"
+
+  product-service:
+    build:
+      context: ./product-service
+    container_name: product-service
+    ports:
+      - "8001:8000"
