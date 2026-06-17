@@ -1,16 +1,19 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.models.product_model import ProductModel
 
 
 class ProductRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_all(self) -> list[ProductModel]:
-        return self.db.query(ProductModel).order_by(ProductModel.id).all()
+    async def get_all(self) -> list[ProductModel]:
+        result = await self.db.execute(select(ProductModel).order_by(ProductModel.id))
 
-    def create_product(
+        return list(result.scalars().all())
+
+    async def create_product(
         self,
         name: str,
         price: int,
@@ -23,7 +26,5 @@ class ProductRepository:
         )
 
         self.db.add(product)
-        self.db.commit()
-        self.db.refresh(product)
 
         return product
