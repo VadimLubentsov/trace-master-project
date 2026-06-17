@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.auth_service import AuthService
-from app.infrastructure.database import get_db
+from app.infrastructure.persistence.db_provider import get_db
 from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
