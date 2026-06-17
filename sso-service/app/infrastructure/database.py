@@ -1,8 +1,13 @@
 import os
+from collections.abc import AsyncGenerator
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import DeclarativeBase
 
 load_dotenv()
 
@@ -16,18 +21,20 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True,
+)
 
-SessionLocal = sessionmaker(
+
+async_session_maker = async_sessionmaker(
     bind=engine,
-    autocommit=False,
+    class_=AsyncSession,
+    expire_on_commit=False,
     autoflush=False,
 )
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_maker() as session:
+        yield session

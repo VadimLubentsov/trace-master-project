@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy.orm import Session
-from app.infrastructure.database import get_db
-from app.application.use_cases.login_user import login_user
-from app.application.use_cases.register_user import register_user
-from app.application.use_cases.validate_token import validate_token
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.application.services.auth_service import AuthService
 from app.infrastructure.database import get_db
 from app.schemas.auth import (
     LoginRequest,
@@ -16,15 +14,21 @@ from app.schemas.auth import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
+    return AuthService(db)
+
+
 @router.get("/health")
-def health_check():
+async def health_check():
     return {"status": "ok", "service": "sso-service"}
 
 
 @router.post("/register", response_model=UserResponse)
-def register(data: RegisterRequest, db: Session = Depends(get_db)):
-    user = register_user(
-        db=db,
+async def register(
+    data: RegisterRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    user = await auth_service.register_user(
         username=data.username,
         password=data.password,
         role=data.role,
@@ -36,33 +40,33 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
             detail="Username already exists",
         )
 
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        role=user.role,
-        is_active=user.is_active,
-    )
+    return user
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    access_token = login_user(
-        db=db,
+async def login(
+    data: LoginRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    token = await auth_service.login_user(
         username=data.username,
         password=data.password,
     )
 
-    if access_token is None:
+    if token is None:
         raise HTTPException(
             status_code=401,
             detail="Invalid username or password",
         )
 
-    return TokenResponse(access_token=access_token)
+    return token
 
 
 @router.post("/validate", response_model=ValidateTokenResponse)
-def validate(authorization: str = Header(..., alias="Authorization")):
+async def validate(
+    authorization: str = Header(..., alias="Authorization"),
+    auth_service: AuthService = Depends(get_auth_service),
+):
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
@@ -71,12 +75,12 @@ def validate(authorization: str = Header(..., alias="Authorization")):
 
     token = authorization.replace("Bearer ", "")
 
-    result = validate_token(token)
+    result = auth_service.validate_token(token)
 
-    if not result["valid"]:
+    if not result.valid:
         raise HTTPException(
             status_code=401,
             detail="Invalid token",
         )
 
-    return ValidateTokenResponse(**result)
+    return result

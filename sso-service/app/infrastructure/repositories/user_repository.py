@@ -1,16 +1,21 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.models.user_model import UserModel
 
 
 class UserRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_by_username(self, username: str) -> UserModel | None:
-        return self.db.query(UserModel).filter(UserModel.username == username).first()
+    async def get_by_username(self, username: str) -> UserModel | None:
+        result = await self.db.execute(
+            select(UserModel).where(UserModel.username == username)
+        )
 
-    def create_user(
+        return result.scalar_one_or_none()
+
+    async def create_user(
         self,
         username: str,
         hashed_password: str,
@@ -23,7 +28,5 @@ class UserRepository:
         )
 
         self.db.add(user)
-        self.db.commit()
-        self.db.refresh(user)
 
         return user
