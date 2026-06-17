@@ -3,30 +3,31 @@ import httpx
 from app.core.config import settings
 
 
-def validate_token(authorization: str) -> dict:
-    try:
-        response = httpx.post(
-            f"{settings.SSO_SERVICE_URL}/auth/validate",
-            headers={"Authorization": authorization},
-            timeout=5.0,
-        )
+class SSOClient:
+    async def validate_token(self, authorization: str) -> dict:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(
+                    f"{settings.SSO_SERVICE_URL}/auth/validate",
+                    headers={"Authorization": authorization},
+                )
 
-        response.raise_for_status()
+            response.raise_for_status()
 
-        return response.json()
+            return response.json()
 
-    except httpx.HTTPStatusError:
-        return {
-            "valid": False,
-            "user_id": None,
-            "username": None,
-            "role": None,
-        }
+        except httpx.HTTPStatusError:
+            return {
+                "valid": False,
+                "user_id": None,
+                "username": None,
+                "role": None,
+            }
 
-    except httpx.RequestError:
-        return {
-            "valid": False,
-            "user_id": None,
-            "username": None,
-            "role": None,
-        }
+        except httpx.RequestError:
+            return {
+                "valid": False,
+                "user_id": None,
+                "username": None,
+                "role": None,
+            }

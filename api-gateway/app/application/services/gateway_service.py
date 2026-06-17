@@ -1,24 +1,32 @@
+import httpx
 from fastapi import HTTPException
 
-from app.infrastructure.clients.sso_client import validate_token
-from app.infrastructure.clients.product_client import get_products
+from app.infrastructure.clients.product_client import ProductClient
+from app.infrastructure.clients.sso_client import SSOClient
 
 
-def get_products_for_authorized_user(authorization: str) -> list[dict]:
-    auth_result = validate_token(authorization)
+class GatewayService:
+    def __init__(self):
+        self.sso_client = SSOClient()
+        self.product_client = ProductClient()
 
-    if not auth_result["valid"]:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token",
-        )
+    async def get_products_for_authorized_user(
+        self,
+        authorization: str,
+    ) -> list[dict]:
+        auth_result = await self.sso_client.validate_token(authorization)
 
-    try:
-        products = get_products()
-        return products
+        if not auth_result["valid"]:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token",
+            )
 
-    except Exception:
-        raise HTTPException(
-            status_code=503,
-            detail="Product service is unavailable",
-        )
+        try:
+            return await self.product_client.get_products()
+
+        except httpx.HTTPError:
+            raise HTTPException(
+                status_code=503,
+                detail="Product service is unavailable",
+            )
