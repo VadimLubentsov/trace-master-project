@@ -6,9 +6,22 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    is_active: bool
 
 
 class ValidateTokenResponse(BaseModel):
