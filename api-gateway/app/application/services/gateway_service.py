@@ -25,8 +25,8 @@ class GatewayService:
         try:
             return await self.product_client.get_products()
 
-        except httpx.HTTPError:
+        except httpx.HTTPError as err:
             raise HTTPException(
                 status_code=503,
                 detail="Product service is unavailable",
-            )
+            ) from err
