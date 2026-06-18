@@ -1,17 +1,22 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.product_service import ProductService
+from app.infrastructure.cache.redis_provider import get_redis
 from app.infrastructure.persistence.db_provider import get_db
 from app.schemas.product import ProductCreate, ProductResponse
 
 router = APIRouter(tags=["products"])
 
 
-def get_product_service(db: AsyncSession = Depends(get_db)) -> ProductService:
-    return ProductService(db)
+def get_product_service(
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> ProductService:
+    return ProductService(db, redis)
 
 
 @router.get("/health")
