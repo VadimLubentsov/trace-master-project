@@ -5,6 +5,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.product_service import ProductService
+from app.infrastructure.cache.product_cache_repository import ProductCacheRepository
 from app.infrastructure.cache.redis_provider import get_redis
 from app.infrastructure.persistence.db_provider import get_db
 from app.schemas.product import ProductCreate, ProductResponse
@@ -16,7 +17,9 @@ def get_product_service(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> ProductService:
-    return ProductService(db, redis)
+    product_cache_repository = ProductCacheRepository(redis)
+
+    return ProductService(db, product_cache_repository)
 
 
 @router.get("/health")
