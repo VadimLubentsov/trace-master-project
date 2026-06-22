@@ -1,4 +1,5 @@
 import json
+import logging
 
 from redis.asyncio import Redis
 
@@ -6,6 +7,8 @@ from app.schemas.product import ProductResponse
 
 PRODUCTS_CACHE_KEY = "products:list"
 PRODUCTS_CACHE_TTL_SECONDS = 300
+
+logger = logging.getLogger(__name__)
 
 
 class ProductCacheRepository:
@@ -16,7 +19,10 @@ class ProductCacheRepository:
         cached_products = await self.redis.get(PRODUCTS_CACHE_KEY)
 
         if cached_products is None:
+            logger.info("Products cache miss key=%s", PRODUCTS_CACHE_KEY)
             return None
+
+        logger.info("Products cache hit key=%s", PRODUCTS_CACHE_KEY)
 
         products_data = json.loads(cached_products)
 
@@ -39,5 +45,18 @@ class ProductCacheRepository:
             ex=PRODUCTS_CACHE_TTL_SECONDS,
         )
 
+        logger.info(
+            "Products cached key=%s count=%s ttl_seconds=%s",
+            PRODUCTS_CACHE_KEY,
+            len(products),
+            PRODUCTS_CACHE_TTL_SECONDS,
+        )
+
     async def delete_products(self) -> None:
-        await self.redis.delete(PRODUCTS_CACHE_KEY)
+        deleted_count = await self.redis.delete(PRODUCTS_CACHE_KEY)
+
+        logger.info(
+            "Products cache invalidated key=%s deleted_count=%s",
+            PRODUCTS_CACHE_KEY,
+            deleted_count,
+        )
