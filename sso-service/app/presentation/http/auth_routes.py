@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.auth_service import AuthService
+from app.infrastructure.cache.redis_provider import get_redis
+from app.infrastructure.cache.token_blacklist_repository import (
+    TokenBlacklistRepository,
+)
 from app.infrastructure.persistence.db_provider import get_db
 from app.schemas.auth import (
     LoginRequest,
@@ -14,8 +19,13 @@ from app.schemas.auth import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
-    return AuthService(db)
+def get_auth_service(
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> AuthService:
+    token_blacklist_repository = TokenBlacklistRepository(redis)
+
+    return AuthService(db, token_blacklist_repository)
 
 
 @router.get("/health")
@@ -75,7 +85,7 @@ async def validate(
 
     token = authorization.replace("Bearer ", "")
 
-    result = auth_service.validate_token(token)
+    result = await auth_service.validate_token(token)
 
     if not result.valid:
         raise HTTPException(
@@ -84,3 +94,27 @@ async def validate(
         )
 
     return result
+
+
+@router.post("/logout")
+async def logout(
+    authorization: str = Header(..., alias="Authorization"),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authorization header",
+        )
+
+    token = authorization.replace("Bearer ", "")
+
+    is_logged_out = await auth_service.logout_user(token)
+
+    if not is_logged_out:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token",
+        )
+
+    return {"detail": "Successfully logged out"}

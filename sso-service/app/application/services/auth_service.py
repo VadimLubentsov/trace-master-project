@@ -1,5 +1,10 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.cache.token_blacklist_repository import (
+    TokenBlacklistRepository,
+)
 from app.infrastructure.models.user_model import UserModel
 from app.infrastructure.repositories.user_repository import UserRepository
 from app.infrastructure.security.jwt_service import (
@@ -11,9 +16,14 @@ from app.schemas.auth import TokenResponse, UserResponse, ValidateTokenResponse
 
 
 class AuthService:
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+        token_blacklist_repository: TokenBlacklistRepository,
+    ):
         self.db = db
         self.user_repository = UserRepository(db)
+        self.token_blacklist_repository = token_blacklist_repository
 
     async def register_user(
         self,
@@ -70,7 +80,10 @@ class AuthService:
 
         return TokenResponse(access_token=access_token)
 
-    def validate_token(self, token: str) -> ValidateTokenResponse:
+    async def validate_token(self, token: str) -> ValidateTokenResponse:
+        if await self.token_blacklist_repository.is_token_blacklisted(token):
+            return ValidateTokenResponse(valid=False)
+
         payload = decode_access_token(token)
 
         if payload is None:
@@ -82,6 +95,34 @@ class AuthService:
             username=payload.get("sub"),
             role=payload.get("role"),
         )
+
+    async def logout_user(self, token: str) -> bool:
+        payload = decode_access_token(token)
+
+        if payload is None:
+            return False
+
+        ttl_seconds = self._get_token_ttl_seconds(payload)
+
+        if ttl_seconds <= 0:
+            return False
+
+        await self.token_blacklist_repository.add_token(
+            token=token,
+            ttl_seconds=ttl_seconds,
+        )
+
+        return True
+
+    def _get_token_ttl_seconds(self, payload: dict) -> int:
+        token_exp = payload.get("exp")
+
+        if token_exp is None:
+            return 0
+
+        now_timestamp = int(datetime.now(UTC).timestamp())
+
+        return int(token_exp) - now_timestamp
 
     def _to_user_response(self, user: UserModel) -> UserResponse:
         return UserResponse(
