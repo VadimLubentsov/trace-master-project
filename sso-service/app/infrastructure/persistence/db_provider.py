@@ -18,10 +18,22 @@ if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")
 
 
+def get_bool_env(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.lower() in ("1", "true", "yes", "on")
+
+
+SQLALCHEMY_ECHO = get_bool_env("SQLALCHEMY_ECHO", default=False)
+
+
 def get_engine() -> AsyncEngine:
     return create_async_engine(
         DATABASE_URL,
-        echo=True,
+        echo=SQLALCHEMY_ECHO,
         pool_size=5,
         max_overflow=10,
         pool_pre_ping=True,

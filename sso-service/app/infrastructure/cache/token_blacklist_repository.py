@@ -1,8 +1,11 @@
 import hashlib
+import logging
 
 from redis.asyncio import Redis
 
 BLACKLIST_TOKEN_PREFIX = "auth:blacklist:"
+
+logger = logging.getLogger(__name__)
 
 
 class TokenBlacklistRepository:
@@ -16,8 +19,18 @@ class TokenBlacklistRepository:
             ex=ttl_seconds,
         )
 
+        logger.info(
+            "Token added to blacklist ttl_seconds=%s",
+            ttl_seconds,
+        )
+
     async def is_token_blacklisted(self, token: str) -> bool:
-        return bool(await self.redis.exists(self._get_token_key(token)))
+        is_blacklisted = bool(await self.redis.exists(self._get_token_key(token)))
+
+        if is_blacklisted:
+            logger.info("Token rejected because it is blacklisted")
+
+        return is_blacklisted
 
     def _get_token_key(self, token: str) -> str:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
