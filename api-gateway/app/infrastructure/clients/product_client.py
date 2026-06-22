@@ -1,6 +1,10 @@
+import logging
+
 import httpx
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class ProductClient:
@@ -12,4 +16,11 @@ class ProductClient:
 
         response.raise_for_status()
 
-        return response.json()
+        products = response.json()
+
+        logger.info(
+            "Product service request completed products_count=%s",
+            len(products),
+        )
+
+        return products

@@ -1,6 +1,10 @@
+import logging
+
 import httpx
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SSOClient:
@@ -14,9 +18,23 @@ class SSOClient:
 
             response.raise_for_status()
 
-            return response.json()
+            auth_result = response.json()
 
-        except httpx.HTTPStatusError:
+            logger.info(
+                "SSO token validation completed valid=%s user_id=%s username=%s",
+                auth_result.get("valid"),
+                auth_result.get("user_id"),
+                auth_result.get("username"),
+            )
+
+            return auth_result
+
+        except httpx.HTTPStatusError as err:
+            logger.info(
+                "SSO token validation rejected status_code=%s",
+                err.response.status_code,
+            )
+
             return {
                 "valid": False,
                 "user_id": None,
@@ -25,6 +43,8 @@ class SSOClient:
             }
 
         except httpx.RequestError:
+            logger.exception("SSO service request failed")
+
             return {
                 "valid": False,
                 "user_id": None,
