@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.exceptions.auth import InvalidTokenError, TokenRequiredError
 from app.application.services.auth_service import AuthService
 from app.infrastructure.cache.redis_provider import get_redis
 from app.infrastructure.cache.token_blacklist_repository import (
@@ -28,6 +29,21 @@ def get_auth_service(
     return AuthService(db, token_blacklist_repository)
 
 
+def extract_bearer_token(authorization: str | None) -> str:
+    if authorization is None or not authorization.strip():
+        raise TokenRequiredError()
+
+    if not authorization.startswith("Bearer "):
+        raise InvalidTokenError()
+
+    token = authorization.replace("Bearer ", "", 1).strip()
+
+    if not token:
+        raise TokenRequiredError()
+
+    return token
+
+
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "sso-service"}
@@ -38,19 +54,11 @@ async def register(
     data: RegisterRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    user = await auth_service.register_user(
+    return await auth_service.register_user(
         username=data.username,
         password=data.password,
         role=data.role,
     )
-
-    if user is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already exists",
-        )
-
-    return user
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -58,63 +66,29 @@ async def login(
     data: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    token = await auth_service.login_user(
+    return await auth_service.login_user(
         username=data.username,
         password=data.password,
     )
 
-    if token is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username or password",
-        )
-
-    return token
-
 
 @router.post("/validate", response_model=ValidateTokenResponse)
 async def validate(
-    authorization: str = Header(..., alias="Authorization"),
+    authorization: str | None = Header(default=None, alias="Authorization"),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header",
-        )
+    token = extract_bearer_token(authorization)
 
-    token = authorization.replace("Bearer ", "")
-
-    result = await auth_service.validate_token(token)
-
-    if not result.valid:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-        )
-
-    return result
+    return await auth_service.validate_token(token)
 
 
 @router.post("/logout")
 async def logout(
-    authorization: str = Header(..., alias="Authorization"),
+    authorization: str | None = Header(default=None, alias="Authorization"),
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header",
-        )
+    token = extract_bearer_token(authorization)
 
-    token = authorization.replace("Bearer ", "")
-
-    is_logged_out = await auth_service.logout_user(token)
-
-    if not is_logged_out:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-        )
+    await auth_service.logout_user(token)
 
     return {"detail": "Successfully logged out"}

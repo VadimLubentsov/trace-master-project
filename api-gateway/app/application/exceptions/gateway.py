@@ -11,6 +11,11 @@ class IdempotencyKeyRequiredError(AppError):
     message = "Idempotency-Key header is required"
 
 
+class SSOServiceUnavailableError(AppError):
+    code = "SSO_SERVICE_UNAVAILABLE"
+    message = "SSO service is unavailable"
+
+
 class ProductServiceUnavailableError(AppError):
     code = "PRODUCT_SERVICE_UNAVAILABLE"
     message = "Product service is unavailable"

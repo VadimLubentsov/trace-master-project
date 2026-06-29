@@ -4,6 +4,11 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.enums.user_role import UserRole
+from app.application.exceptions.auth import (
+    InvalidCredentialsError,
+    InvalidTokenError,
+    UsernameAlreadyExistsError,
+)
 from app.infrastructure.cache.token_blacklist_repository import (
     TokenBlacklistRepository,
 )
@@ -43,7 +48,7 @@ class AuthService:
                 username,
             )
 
-            return None
+            raise UsernameAlreadyExistsError()
 
         hashed_password = hash_password(password)
 
@@ -89,7 +94,7 @@ class AuthService:
                 username,
             )
 
-            return None
+            raise InvalidCredentialsError()
 
         if not user.is_active:
             logger.info(
@@ -107,7 +112,7 @@ class AuthService:
                 user.username,
             )
 
-            return None
+            raise InvalidCredentialsError()
 
         access_token = create_access_token(
             data={
@@ -129,15 +134,13 @@ class AuthService:
     async def validate_token(self, token: str) -> ValidateTokenResponse:
         if await self.token_blacklist_repository.is_token_blacklisted(token):
             logger.info("Token validation failed reason=blacklisted")
-
-            return ValidateTokenResponse(valid=False)
+            raise InvalidTokenError()
 
         payload = decode_access_token(token)
 
         if payload is None:
             logger.info("Token validation failed reason=invalid_or_expired")
-
-            return ValidateTokenResponse(valid=False)
+            raise InvalidTokenError()
 
         logger.info(
             "Token validated user_id=%s username=%s role=%s",
