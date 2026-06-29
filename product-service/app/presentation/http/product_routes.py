@@ -1,13 +1,10 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.exceptions.idempotency import (
-    IdempotencyConflictError,
-    IdempotencyInProgressError,
-)
+from app.application.exceptions.idempotency import IdempotencyKeyRequiredError
 from app.application.services.product_service import ProductService
 from app.infrastructure.cache.idempotency_repository import IdempotencyRepository
 from app.infrastructure.cache.product_cache_repository import ProductCacheRepository
@@ -51,30 +48,14 @@ async def create_product(
     product_service: ProductService = Depends(get_product_service),
 ):
     if idempotency_key is None or not idempotency_key.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Idempotency-Key header is required",
-        )
+        raise IdempotencyKeyRequiredError
 
-    try:
-        return await product_service.create_product(
-            name=data.name,
-            price=data.price,
-            stock_quantity=data.stock_quantity,
-            idempotency_key=idempotency_key.strip(),
-        )
-
-    except IdempotencyConflictError as err:
-        raise HTTPException(
-            status_code=409,
-            detail="Idempotency key was already used with different request body",
-        ) from err
-
-    except IdempotencyInProgressError as err:
-        raise HTTPException(
-            status_code=409,
-            detail="Request with this Idempotency-Key is already processing",
-        ) from err
+    return await product_service.create_product(
+        name=data.name,
+        price=data.price,
+        stock_quantity=data.stock_quantity,
+        idempotency_key=idempotency_key.strip(),
+    )
 
 
 @router.get("/products/slow", response_model=list[ProductResponse])
@@ -88,4 +69,4 @@ async def get_products_slow(
 
 @router.get("/products/error")
 async def get_products_error():
-    raise HTTPException(status_code=500, detail="Test product error")
+    raise RuntimeError("Test product error")

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header
 
+from app.application.exceptions.gateway import IdempotencyKeyRequiredError
 from app.application.services.gateway_service import GatewayService
 from app.schemas.product import ProductCreate
 
@@ -33,10 +34,7 @@ async def create_product(
     gateway_service: GatewayService = Depends(get_gateway_service),
 ):
     if idempotency_key is None or not idempotency_key.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Idempotency-Key header is required",
-        )
+        raise IdempotencyKeyRequiredError()
 
     return await gateway_service.create_product_for_authorized_user(
         authorization=authorization,
