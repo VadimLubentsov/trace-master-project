@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.enums.user_role import UserRole
 from app.infrastructure.cache.token_blacklist_repository import (
     TokenBlacklistRepository,
 )
@@ -32,7 +33,7 @@ class AuthService:
         self,
         username: str,
         password: str,
-        role: str = "user",
+        role: UserRole = UserRole.USER,
     ) -> UserResponse | None:
         existing_user = await self.user_repository.get_by_username(username)
 
@@ -50,7 +51,7 @@ class AuthService:
             user = await self.user_repository.create_user(
                 username=username,
                 hashed_password=hashed_password,
-                role=role,
+                role=role.value,
             )
 
             await self.db.commit()

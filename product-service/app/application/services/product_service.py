@@ -2,6 +2,10 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.enums.idempotency import (
+    IdempotencyOperation,
+    IdempotencyStatus,
+)
 from app.application.exceptions.idempotency import (
     IdempotencyConflictError,
     IdempotencyInProgressError,
@@ -12,8 +16,6 @@ from app.infrastructure.cache.product_cache_repository import ProductCacheReposi
 from app.infrastructure.models.product_model import ProductModel
 from app.infrastructure.repositories.product_repository import ProductRepository
 from app.schemas.product import ProductResponse
-
-PRODUCT_CREATE_OPERATION = "products:create"
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +62,7 @@ class ProductService:
         )
 
         existing_record = await self.idempotency_repository.get_record(
-            operation=PRODUCT_CREATE_OPERATION,
+            operation=IdempotencyOperation.PRODUCT_CREATE,
             idempotency_key=idempotency_key,
         )
 
@@ -70,7 +72,7 @@ class ProductService:
 
                 raise IdempotencyConflictError
 
-            if existing_record.status == "completed":
+            if existing_record.status == IdempotencyStatus.COMPLETED:
                 logger.info("Product create returned from idempotency cache")
 
                 return ProductResponse(**existing_record.response_data)
@@ -80,7 +82,7 @@ class ProductService:
             raise IdempotencyInProgressError
 
         was_reserved = await self.idempotency_repository.reserve_operation(
-            operation=PRODUCT_CREATE_OPERATION,
+            operation=IdempotencyOperation.PRODUCT_CREATE,
             idempotency_key=idempotency_key,
             request_hash=request_hash,
         )
@@ -105,7 +107,7 @@ class ProductService:
             await self.product_cache_repository.delete_products()
 
             await self.idempotency_repository.save_completed_response(
-                operation=PRODUCT_CREATE_OPERATION,
+                operation=IdempotencyOperation.PRODUCT_CREATE,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 response_data=self._response_to_dict(response_product),
@@ -123,7 +125,7 @@ class ProductService:
             await self.db.rollback()
 
             await self.idempotency_repository.delete_record(
-                operation=PRODUCT_CREATE_OPERATION,
+                operation=IdempotencyOperation.PRODUCT_CREATE,
                 idempotency_key=idempotency_key,
             )
 
